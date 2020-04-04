@@ -13,6 +13,7 @@ typedef struct Stream Stream;
 struct Stream{
 	int pid;
 	char *url;
+	char *name;
 	int data[2];
 	Channel *cpid;
 };
@@ -37,11 +38,17 @@ static char *Etoomany = "Too many files";
 static void
 sshproc(void *arg)
 {
-	Stream *a = arg;
+	char buf[512];
+	Stream *a;
+
+	a = arg;
 	dup(a->data[0], 1);
 	close(a->data[0]);
 	close(a->data[1]);
-	procexecl(a->cpid, "/bin/ssh", "ssh", remote, "mpv", "--really-quiet", "--o=-", "--of=mp3", "--no-video", a->url, nil);
+	close(2);
+	snprint(buf, sizeof buf, "youtube-dl --youtube-skip-dash-manifest -o - -f bestaudio %s | "
+		"ffmpeg -y -i - -f mp3 -b:a 160k -", a->url);
+	procexecl(a->cpid, "/bin/ssh", "ssh", remote, "bash", "-c", buf, nil);
 }
 
 static void
@@ -69,8 +76,8 @@ fswalk1(Fid *fid, char *name, Qid *qid)
 				continue;
 			}
 			c++;
-			if(strcmp(name, strrchr(streams[i].url, '=')+1) == 0){
-				*qid = (Qid){Qurl+i, 0, QTDIR};
+			if(strcmp(name, streams[i].name) == 0){
+				*qid = (Qid){Qurl+i, 0, QTFILE};
 				fid->qid = *qid;
 				return nil;	
 			}
@@ -96,6 +103,7 @@ fscreate(Req *r)
 		return;
 	}
 	s->url = smprint("%s%s", prefix, name);
+	s->name = smprint("%s%s", name, ".mp3");
 	r->fid->qid = (Qid){Qurl+i, 0, 0};
 	r->ofcall.qid = r->fid->qid;
 	nstream++;
@@ -113,7 +121,10 @@ fsremove(Req *r)
 		respond(r, Ebadqid);
 		return;
 	}
+	free(streams[path].url);
+	free(streams[path].name);
 	streams[path].url = nil;
+	streams[path].name = nil;
 	nstream--;
 	respond(r, nil);
 }
@@ -152,13 +163,14 @@ static int
 urldirgen(int n, Dir *dir, void*)
 {
 	Stream *s;
+
 	nulldir(dir);
 	if(n >= nstream)
 		return -1;
 	s = streams+n;
-	dir->qid = (Qid){Qurl+n, 0, 0};
+	dir->qid = (Qid){Qurl+n, 0, QTFILE};
 	dir->mode = 0644;
-	dir->name = estrdup9p(strrchr(s->url, '=')+1);
+	dir->name = estrdup9p(s->name);
 	dir->uid = nil;
 	dir->gid = nil;
 	dir->muid = nil;
@@ -212,7 +224,7 @@ fsstat(Req *r)
 			return;
 		}
 		s = streams+path;
-		d->name = estrdup9p(s->url);
+		d->name = estrdup9p(s->name);
 		d->mode = 0644;
 		break;
 	}
@@ -230,7 +242,7 @@ fsdestroy(Fid *f)
 
 	path = f->qid.path;
 	path -= Qurl;
-	if((f->qid.type & (QTAUTH & QTDIR)) != 0 || path < 0)
+	if((f->qid.type & (QTAUTH | QTDIR)) != 0 || path < 0)
 		return;
 	s = streams+path;
 	if(s->pid != 0){
@@ -262,8 +274,9 @@ usage(void)
 void
 threadmain(int argc, char *argv[])
 {
-	char *mtpt = "/n/ytfs";
+	char *mtpt;
 
+	mtpt = "/n/ytfs";
 	ARGBEGIN{
 	case 'D':
 		chatty9p++;
