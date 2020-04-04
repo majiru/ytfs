@@ -1,5 +1,5 @@
 </$objtype/mkfile
-BIN=$home/bin/$objtype/bin
+BIN=$home/bin/$objtype/
 
 TARG=ytfs
 OFILES=ytfs.$O
