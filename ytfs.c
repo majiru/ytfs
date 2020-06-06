@@ -47,7 +47,8 @@ sshproc(void *arg)
 	close(a->data[1]);
 	close(2);
 	snprint(buf, sizeof buf, "youtube-dl --youtube-skip-dash-manifest -o - -f bestaudio %s | "
-		"ffmpeg -y -i - -f mp3 -b:a 160k -", a->url);
+		"ffmpeg -y -i - -f mp3 -b:a 160k -metadata title=\"`youtube-dl -e %s`\" -metadata album=ytfs -",
+		a->url, a->url);
 	procexecl(a->cpid, "/bin/ssh", "ssh", remote, "bash", "-c", buf, nil);
 }
 
