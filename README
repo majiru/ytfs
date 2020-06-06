@@ -1,11 +1,11 @@
 ytfs: a filesystem for playing audio from youtube videos on plan9.
 
-Ytfs requires access to a unix system with sshd, mpv, and youtube_dl to
+Ytfs requires access to a unix system with ffmpeg, and youtube_dl to
 convert the video to mp3.
 
 Usage:
 % ytfs myUnixHost
 % touch /n/ytfs/VideoID
-% play /n/ytfs/VideoID
+% play /n/ytfs/VideoID.mp3
 
 The VideoID files are represented as mp3 files, and can be streamed or copied to disk.
